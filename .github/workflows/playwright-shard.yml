@@ -211,4 +211,4 @@ jobs:
           message: |
             [Click here to see Tesults Lighthouse Report](https://www.tesults.com/results/rsp/view/results/target/48242328-a7eb-4ab4-8065-3a3686634e5c-1701748288944)
           comment_tag: lighthouse_message
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MY_GITHUB_PAT }}
