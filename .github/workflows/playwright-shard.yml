@@ -185,8 +185,7 @@ jobs:
     needs: set_job_params
     runs-on: ubuntu-latest
     container:
-      image: container:
-  image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION}}-jammy
+    image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION}}-jammy
     steps:
       - uses: actions/checkout@v4
       
