@@ -178,37 +178,38 @@ jobs:
           [Click here to see Tesults Dashboard](https://www.tesults.com/results/rsp/view/status/project/48242328-a7eb-4ab4-8065-3a3686634e5c/group/playwright-boilerplate)
         comment_tag: playwright_message
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
   lighthouse_test:
-    if: ${{ always() }}
-    name: Lighthouse
-    needs: set_job_params
-    runs-on: ubuntu-latest
-    container:
-    image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION}}-jammy
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Yarn Install
-        run: yarn install
-        
-      - name: Run Lighthouse
-        run: yarn test:lighthouse
-        env:
-          HOME: /root # required for playwright to run in container
-        
-      - name: Upload Lighthouse Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: lighthouse-report
-          path: tests/lighthouse/reports
-          retention-days: 10
+  if: ${{ always() }}
+  name: Lighthouse
+  needs: set_job_params
+  runs-on: ubuntu-latest
+  container:
+    image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION }}-jammy
 
-      - name: Message PR of Artifact Published
-        if: ${{ always() && github.event_name == 'pull_request' }}
-        uses: thollander/actions-comment-pull-request@main
-        with:
-          message: |
-            [Click here to see Tesults Lighthouse Report](https://www.tesults.com/results/rsp/view/results/target/48242328-a7eb-4ab4-8065-3a3686634e5c-1701748288944)
-          comment_tag: lighthouse_message
-          GITHUB_TOKEN: ${{ secrets.MY_GITHUB_PAT }}
+  steps:
+    - uses: actions/checkout@v4
+
+    - name: Yarn Install
+      run: yarn install
+
+    - name: Run Lighthouse
+      run: yarn test:lighthouse
+      env:
+        HOME: /root
+
+    - name: Upload Lighthouse Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: lighthouse-report
+        path: tests/lighthouse/reports
+        retention-days: 10
+
+    - name: Message PR of Artifact Published
+      if: ${{ always() && github.event_name == 'pull_request' }}
+      uses: thollander/actions-comment-pull-request@main
+      with:
+        message: |
+          [Click here to see Tesults Lighthouse Report](https://www.tesults.com/results/rsp/view/results/target/48242328-a7eb-4ab4-8065-3a3686634e5c-1701748288944)
+        comment_tag: lighthouse_message
+        GITHUB_TOKEN: ${{ secrets.MY_GITHUB_PAT }}
+  
