@@ -24,7 +24,7 @@ jobs:
     name: Set Job Params
     runs-on: ubuntu-latest
     outputs:
-      pw-version: ${{ steps.set_version.outputs.PW_VERSION }}
+      PW_VERSION: ${{ steps.set_version.outputs.PW_VERSION }}
       pw-tesults-target-token: ${{ steps.generate-secret.outputs.SECRET_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
         shardTotal: [4]
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.pw-version }}-jammy
+      image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION }}-jammy
     steps:
       - uses: actions/checkout@v4
 
@@ -161,7 +161,7 @@ jobs:
     - name: Upload HTML report for Pages
       uses: actions/upload-pages-artifact@v3
       with:
-        name: github-pages
+        name: github-pages  
         path: playwright-report
         retention-days: 14
 
@@ -185,7 +185,8 @@ jobs:
     needs: set_job_params
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.pw-version }}-jammy
+      image: container:
+  image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION}}-jammy
     steps:
       - uses: actions/checkout@v4
       
