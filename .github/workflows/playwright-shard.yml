@@ -1,18 +1,18 @@
 name: Playwright Test
-on:
-    workflow_dispatch:
-    push:
-      branches: [main]
-    pull_request:
-      branches: [main]
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 permissions:
-    contents: read
-    pages: write
-    id-token: write
-    checks: write # for dorny/test-reporter
-    pull-requests: write # for leaving a comment on PR
+  contents: read
+  pages: write
+  id-token: write
+  checks: write
+  pull-requests: write
 
 env:
   NODEJS_VERSION: 20
@@ -26,9 +26,10 @@ jobs:
     outputs:
       PW_VERSION: ${{ steps.set_version.outputs.PW_VERSION }}
       pw-tesults-target-token: ${{ steps.generate-secret.outputs.SECRET_TOKEN }}
+
     steps:
       - uses: actions/checkout@v4
-    
+
       - name: Setup NodeJS SDK ${{ env.NODEJS_VERSION }}
         uses: actions/setup-node@v4
         with:
@@ -36,16 +37,14 @@ jobs:
           cache-dependency-path: yarn.lock
           node-version: ${{ env.NODEJS_VERSION }}
 
-      # used to create/delete branch target
       - name: Set Branch Name Environment Variable
         run: |
-          # Short name for current branch. For PRs, use target branch (base ref)
           BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
-          
+
       - name: Yarn Install
         run: yarn install --mode=skip-build
-        
+
       - name: Create Tesults Target Token
         run: node ./.scripts/create-delete-branch-target.js create
 
@@ -68,14 +67,17 @@ jobs:
   playwright_test:
     name: Playwright Test
     needs: set_job_params
+    runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
         shardIndex: [1, 2, 3, 4]
         shardTotal: [4]
-    runs-on: ubuntu-latest
+
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION }}-jammy
+
     steps:
       - uses: actions/checkout@v4
 
@@ -86,14 +88,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tesultsToken
-      
+
       - name: Set Tesults Target Token Environment Variable
         run: echo "PW_TESULTS_TOKEN=$(cat tesultsToken.txt)" >> $GITHUB_ENV
 
       - name: Run Tests
         run: yarn test:ci --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
         env:
-          HOME: /root # required for playwright to run in container
+          HOME: /root
 
       - name: Upload blob report to GitHub Actions Artifacts
         if: always()
@@ -102,8 +104,7 @@ jobs:
           name: all-blob-reports-${{ matrix.shardIndex }}
           path: blob-report/
           retention-days: 10
-        
-      # uploading to have a backup of the test-results in case reporting fails
+
       - name: Upload test-results to GitHub Actions Artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -112,104 +113,104 @@ jobs:
           path: test-results/
           retention-days: 10
           if-no-files-found: warn
-          
+
   reporting:
-    if: ${{ always() }}
-    needs: playwright_test
     name: Reporting
+    if: always()
+    needs: playwright_test
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup NodeJS SDK ${{ env.NODEJS_VERSION }}
-      uses: actions/setup-node@v4
-      with:
-        cache: yarn
-        cache-dependency-path: yarn.lock
-        node-version: ${{ env.NODEJS_VERSION }}
-    
-    - name: Yarn Install
-      run: yarn install
-    
-    - name: Download blob reports from GitHub Actions Artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: all-blob-reports-*
-        merge-multiple: true
-        path: all-blob-reports
-      
-    # xml report use by dorny-test-reporter
-    - name: Merge into XML Report
-      run: PLAYWRIGHT_JUNIT_OUTPUT_NAME=junit.xml npx playwright merge-reports --reporter=junit ./all-blob-reports
-        
-    - name: Test Report
-      uses: dorny/test-reporter@v1
-      if: success() || failure()
-      with:
-        name: Playwright Test Report
-        path: "**/junit.xml"
-        reporter: java-junit
-        fail-on-error: 'false'
+      - uses: actions/checkout@v4
 
-    - name: Merge into HTML Report
-      run: npx playwright merge-reports --reporter html ./all-blob-reports 
-        
-    - name: Setup Pages
-      uses: actions/configure-pages@v5
+      - name: Setup NodeJS SDK ${{ env.NODEJS_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          cache: yarn
+          cache-dependency-path: yarn.lock
+          node-version: ${{ env.NODEJS_VERSION }}
 
-    - name: Upload HTML report for Pages
-      uses: actions/upload-pages-artifact@v3
-      with:
-        name: github-pages  
-        path: playwright-report
-        retention-days: 14
+      - name: Yarn Install
+        run: yarn install
 
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+      - name: Download blob reports from GitHub Actions Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: all-blob-reports-*
+          merge-multiple: true
+          path: all-blob-reports
 
-    - name: Message PR of Artifact Published
-      if: ${{ always() && github.event_name == 'pull_request' }}
-      uses: thollander/actions-comment-pull-request@main
-      with:
-        message: |
-          [Click here for Github Pages Playwright Report](${{ steps.deployment.outputs.page_url }})
-          [Click here to see Tesults Dashboard](https://www.tesults.com/results/rsp/view/status/project/48242328-a7eb-4ab4-8065-3a3686634e5c/group/playwright-boilerplate)
-        comment_tag: playwright_message
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge into XML Report
+        run: PLAYWRIGHT_JUNIT_OUTPUT_NAME=junit.xml npx playwright merge-reports --reporter=junit ./all-blob-reports
+
+      - name: Test Report
+        if: success() || failure()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Playwright Test Report
+          path: "**/junit.xml"
+          reporter: java-junit
+          fail-on-error: "false"
+
+      - name: Merge into HTML Report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload HTML report for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: github-pages
+          path: playwright-report
+          retention-days: 14
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Message PR of Artifact Published
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: thollander/actions-comment-pull-request@main
+        with:
+          message: |
+            [Click here for Github Pages Playwright Report](${{ steps.deployment.outputs.page_url }})
+            [Click here to see Tesults Dashboard](https://www.tesults.com/results/rsp/view/status/project/48242328-a7eb-4ab4-8065-3a3686634e5c/group/playwright-boilerplate)
+          comment_tag: playwright_message
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lighthouse_test:
-  if: ${{ always() }}
-  name: Lighthouse
-  needs: set_job_params
-  runs-on: ubuntu-latest
-  container:
-    image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION }}-jammy
+    name: Lighthouse
+    if: always()
+    needs: set_job_params
+    runs-on: ubuntu-latest
 
-  steps:
-    - uses: actions/checkout@v4
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.set_job_params.outputs.PW_VERSION }}-jammy
 
-    - name: Yarn Install
-      run: yarn install
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Run Lighthouse
-      run: yarn test:lighthouse
-      env:
-        HOME: /root
+      - name: Yarn Install
+        run: yarn install
 
-    - name: Upload Lighthouse Report
-      uses: actions/upload-artifact@v4
-      with:
-        name: lighthouse-report
-        path: tests/lighthouse/reports
-        retention-days: 10
+      - name: Run Lighthouse
+        run: yarn test:lighthouse
+        env:
+          HOME: /root
 
-    - name: Message PR of Artifact Published
-      if: ${{ always() && github.event_name == 'pull_request' }}
-      uses: thollander/actions-comment-pull-request@main
-      with:
-        message: |
-          [Click here to see Tesults Lighthouse Report](https://www.tesults.com/results/rsp/view/results/target/48242328-a7eb-4ab4-8065-3a3686634e5c-1701748288944)
-        comment_tag: lighthouse_message
-        GITHUB_TOKEN: ${{ secrets.MY_GITHUB_PAT }}
-  
+      - name: Upload Lighthouse Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: tests/lighthouse/reports
+          retention-days: 10
+
+      - name: Message PR of Artifact Published
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: thollander/actions-comment-pull-request@main
+        with:
+          message: |
+            [Click here to see Tesults Lighthouse Report](https://www.tesults.com/results/rsp/view/results/target/48242328-a7eb-4ab4-8065-3a3686634e5c-1701748288944)
+          comment_tag: lighthouse_message
+          GITHUB_TOKEN: ${{ secrets.MY_GITHUB_PAT }}
