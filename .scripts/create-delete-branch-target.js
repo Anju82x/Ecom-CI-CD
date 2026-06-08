@@ -5,7 +5,7 @@
  * The script also deletes the target if the branch is deleted.
  */
 const fetch = require("node-fetch");
-const fs = require("fs");
+const fs = require("fs").promises;
 const { argv } = require("process");
 
 const repoName = "playwright-boilerplate";
@@ -37,7 +37,8 @@ async function sendCreateRequest(apiToken, desiredTargetName, repoName) {
     );
     return await res.json();
   } catch (error) {
-    return console.log("send create request error", error);
+    console.log("send create request error", error);
+    throw error;
   }
 }
 
@@ -57,7 +58,8 @@ async function sendDeleteRequest(apiToken, targetId) {
     );
     return await res.json();
   } catch (error) {
-    return console.log("send delete request error", error);
+    console.log("send delete request error", error);
+    throw error;
   }
 }
 
@@ -76,7 +78,8 @@ async function sendGetTargetsRequest(apiToken) {
     );
     return await res.json();
   } catch (error) {
-    return console.log("set get request error", error);
+    console.log("set get request error", error);
+    throw error;
   }
 }
 
@@ -96,7 +99,8 @@ async function sendRegenerateTargetTokenRequest(apiToken, targetId) {
     );
     return await res.json();
   } catch (error) {
-    return console.log("send regenerate token request error", error);
+    console.log("send regenerate token request error", error);
+    throw error;
   }
 }
 
@@ -119,66 +123,68 @@ function isTargetExist(currentTargets, targetName) {
   return false;
 }
 
-function createTarget(apiToken, desiredTargetName, repoName) {
-  let newToken;
-  sendGetTargetsRequest(apiToken).then((res) => {
+async function createTarget(apiToken, desiredTargetName, repoName) {
+  try {
+    const res = await sendGetTargetsRequest(apiToken);
+    
+    if (!res.data || !res.data.targets) {
+      throw new Error("Invalid response from Tesults API");
+    }
+
+    let newToken;
     if (!isTargetExist(res.data.targets, desiredTargetName)) {
-      sendCreateRequest(apiToken, desiredTargetName, repoName)
-        .then((res) => {
-          newToken = res.data.token;
-        })
-        .then(() => {
-          console.log(
-            "setting tesults token for created target: " + desiredTargetName
-          );
-          fs.writeFile("tesultsToken.txt", newToken, function (err) {
-            if (err) {
-              console.log(err);
-            } else {
-              console.log("tesults token > tesultsToken.txt");
-            }
-          });
-        });
+      const createRes = await sendCreateRequest(apiToken, desiredTargetName, repoName);
+      newToken = createRes.data.token;
     } else {
       console.log(
         "regenerating token for existing target: " + desiredTargetName
       );
-      sendRegenerateTargetTokenRequest(
+      const regenerateRes = await sendRegenerateTargetTokenRequest(
         apiToken,
         findTargetId(res.data.targets, desiredTargetName)
-      ).then((res) => {
-        fs.writeFile("tesultsToken.txt", res.data.token, function (err) {
-          if (err) {
-            console.log(err);
-          } else {
-            console.log("tesults token > tesultsToken.txt");
-          }
-        });
-      });
+      );
+      newToken = regenerateRes.data.token;
     }
-  });
+
+    console.log(
+      "setting tesults token for created target: " + desiredTargetName
+    );
+    await fs.writeFile("tesultsToken.txt", newToken);
+    console.log("tesults token > tesultsToken.txt");
+  } catch (error) {
+    console.error("Error in createTarget:", error);
+    process.exit(1);
+  }
 }
 
-function deleteTarget(apiToken, desiredTargetName) {
-  let targetId;
-  sendGetTargetsRequest(apiToken)
-    .then((res) => {
-      targetId = findTargetId(res.data.targets, desiredTargetName);
-    })
-    .then(() => {
-      sendDeleteRequest(apiToken, targetId).then((res) => {
-        console.log(res);
-      });
-    });
+async function deleteTarget(apiToken, desiredTargetName) {
+  try {
+    const res = await sendGetTargetsRequest(apiToken);
+    
+    if (!res.data || !res.data.targets) {
+      throw new Error("Invalid response from Tesults API");
+    }
+
+    const targetId = findTargetId(res.data.targets, desiredTargetName);
+    const deleteRes = await sendDeleteRequest(apiToken, targetId);
+    console.log(deleteRes);
+  } catch (error) {
+    console.error("Error in deleteTarget:", error);
+    process.exit(1);
+  }
 }
 
-switch (argv[2]) {
-  case "create":
-    createTarget(apiToken, desiredTargetName, repoName);
-    break;
-  case "delete":
-    deleteTarget(apiToken, desiredTargetName);
-    break;
-  default:
-    console.log("no target action specified, exiting...");
+async function main() {
+  switch (argv[2]) {
+    case "create":
+      await createTarget(apiToken, desiredTargetName, repoName);
+      break;
+    case "delete":
+      await deleteTarget(apiToken, desiredTargetName);
+      break;
+    default:
+      console.log("no target action specified, exiting...");
+  }
 }
+
+main();
