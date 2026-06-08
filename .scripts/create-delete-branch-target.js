@@ -123,13 +123,24 @@ function isTargetExist(currentTargets, targetName) {
   return false;
 }
 
+function assertTargetsResponse(res) {
+  if (res && res.error) {
+    throw new Error(
+      `Tesults API error ${res.error.code}: ${res.error.message}`
+    );
+  }
+  if (!res || !res.data || !res.data.targets) {
+    throw new Error(
+      "Invalid response from Tesults API: " + JSON.stringify(res)
+    );
+  }
+}
+
 async function createTarget(apiToken, desiredTargetName, repoName) {
   try {
     const res = await sendGetTargetsRequest(apiToken);
-    
-    if (!res.data || !res.data.targets) {
-      throw new Error("Invalid response from Tesults API");
-    }
+
+    assertTargetsResponse(res);
 
     let newToken;
     if (!isTargetExist(res.data.targets, desiredTargetName)) {
@@ -160,10 +171,8 @@ async function createTarget(apiToken, desiredTargetName, repoName) {
 async function deleteTarget(apiToken, desiredTargetName) {
   try {
     const res = await sendGetTargetsRequest(apiToken);
-    
-    if (!res.data || !res.data.targets) {
-      throw new Error("Invalid response from Tesults API");
-    }
+
+    assertTargetsResponse(res);
 
     const targetId = findTargetId(res.data.targets, desiredTargetName);
     const deleteRes = await sendDeleteRequest(apiToken, targetId);
@@ -175,6 +184,15 @@ async function deleteTarget(apiToken, desiredTargetName) {
 }
 
 async function main() {
+  if (!apiToken) {
+    console.error(
+      "TESULTS_API_TOKEN is not set. If this is a pull request from a fork, " +
+        "GitHub does not expose secrets to fork PRs. Otherwise, set the " +
+        "TESULTS_API_TOKEN secret in the repository settings."
+    );
+    process.exit(1);
+  }
+
   switch (argv[2]) {
     case "create":
       await createTarget(apiToken, desiredTargetName, repoName);
